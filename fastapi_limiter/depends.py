@@ -32,11 +32,12 @@ class RateLimiter:
         return pexpire
 
     async def __call__(self, request: Request, response: Response):
-        if request.client.host in FastAPILimiter.whitelist:
-            return
-
         if not FastAPILimiter.redis:
             raise Exception("You must call FastAPILimiter.init in startup event of fastapi!")
+
+        if request.headers.get("X-Forwarded-For", request.client.host) in FastAPILimiter.whitelist:
+            return
+
         index = 0
         for route in request.app.routes:
             if route.path == request.scope["path"]:
@@ -44,7 +45,6 @@ class RateLimiter:
                     if self is dependency.dependency:
                         index = idx
                         break
-
         # moved here because constructor run before app startup
         identifier = self.identifier or FastAPILimiter.identifier
         callback = self.callback or FastAPILimiter.http_callback
@@ -57,11 +57,12 @@ class RateLimiter:
 
 class WebSocketRateLimiter(RateLimiter):
     async def __call__(self, ws: WebSocket, context_key=""):
-        if request.client.host in FastAPILimiter.whitelist:
-            return
-
         if not FastAPILimiter.redis:
             raise Exception("You must call FastAPILimiter.init in startup event of fastapi!")
+
+        if request.headers.get("X-Forwarded-For", request.client.host) in FastAPILimiter.whitelist:
+            return
+
         identifier = self.identifier or FastAPILimiter.identifier
         rate_key = await identifier(ws)
         key = f"{FastAPILimiter.prefix}:ws:{rate_key}:{context_key}"
